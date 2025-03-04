@@ -2,6 +2,9 @@
 
 This application provides a frontend for visualizing and analyzing OTDR (Optical Time Domain Reflectometer) trace files (.sor format). It now includes Python-based parser and analysis tools.
 
+![image](https://github.com/user-attachments/assets/e3959f87-932f-4375-af8a-62c5848bf25c)
+
+
 ## Architecture Overview
 
 The application consists of:
@@ -139,6 +142,8 @@ This local implementation can be migrated to Azure Functions by:
    - Manages application state
    - Processes uploaded files
    - Connects to the Python API when enabled
+## Run backend
+npm run start-api
 
 ## Running the Frontend
 
@@ -152,3 +157,5 @@ Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 ### `npm run build`
 
 Builds the app for production to the `build` folder.
+
+
