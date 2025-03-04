@@ -166,7 +166,7 @@ interface OTDRState {
   removeComparisonTrace: (traceId: string) => void;
   toggleCompareMode: () => void;
   clearComparison: () => void;
-  uploadTrace: (file: File) => Promise<void>;
+  uploadTrace: (file: File, apiTrace?: OTDRTrace) => Promise<void>;
   updateFilters: (filters: Partial<OTDRFilter>) => void;
   resetFilters: () => void;
   getFilteredTraces: () => OTDRTrace[];
@@ -230,133 +230,139 @@ const useOTDRStore = create<OTDRState>((set, get) => ({
     });
   },
 
-  // Action to upload a new trace (mock implementation)
-  uploadTrace: async (file: File) => {
+  // Action to upload a new trace using the Python parser
+  uploadTrace: async (file: File, apiTrace?: OTDRTrace) => {
     set({ loading: true, error: null });
     
     try {
-      // In a real implementation, this would send the file to a backend API
-      // and parse the response. For now, we'll create a mock trace with some delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // If we have an API trace, use it directly
+      if (apiTrace) {
+        // Add the API trace to the store
+        set(state => ({ 
+          traces: [...state.traces, apiTrace],
+          selectedTrace: apiTrace,
+          loading: false 
+        }));
+        return;
+      }
       
-      // Generate random timestamp within the last 30 days
+      // Otherwise, create mock data locally
       const now = new Date();
-      const randomDaysAgo = Math.floor(Math.random() * 30);
-      const randomHours = Math.floor(Math.random() * 24);
-      const randomMinutes = Math.floor(Math.random() * 60);
-      const timestamp = new Date(now.getTime() - 
-        (randomDaysAgo * 24 * 60 * 60 * 1000) - 
-        (randomHours * 60 * 60 * 1000) - 
-        (randomMinutes * 60 * 1000)
-      ).toISOString();
+      const timestamp = now.toISOString();
+      const fiberId = file.name.split('_')[0] || `FIBER${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
       
-      // Generate random fiber ID
-      const fiberId = `FIBER${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-      
-      // Generate random events based on the fiber length
-      const fiberLength = 10 + Math.random() * 20; // 10-30km range
-      const numEvents = 2 + Math.floor(Math.random() * 4); // 2-5 events
-      
+      // Mock some events based on file size
+      const fiberLength = file.size / 1000; // Using file size as a proxy for fiber length
       const events: OTDREvent[] = [];
       
-      // Add an entry connector event
+      // Add starter events
       events.push({
         id: `${Date.now()}-0`,
         type: EventType.CONNECTOR,
-        distance: 0.2 + Math.random() * 0.3, // 0.2-0.5km
-        loss: 0.3 + Math.random() * 0.4,     // 0.3-0.7dB loss
-        reflection: -40 + Math.random() * 10, // -40 to -30dB reflection
+        distance: 0.2,
+        loss: 0.5,
+        reflection: -38,
         description: 'Entry Connector'
       });
       
-      // Add middle events
-      for (let i = 1; i < numEvents; i++) {
-        const eventDistance = (i * fiberLength / numEvents) + (Math.random() * 1.5 - 0.75);
+      // Simulate back reflections and fiber issues
+      const mockFiberIssues = [
+        { distance: fiberLength * 0.2, type: EventType.SPLICE },
+        { distance: fiberLength * 0.4, type: EventType.LOSS },
+        { distance: fiberLength * 0.7, type: EventType.CONNECTOR },
+        { distance: fiberLength * 0.9, type: EventType.BREAK },
+      ];
+      
+      mockFiberIssues.forEach((issue, i) => {
+        const eventId = `${Date.now()}-${i + 1}`;
         
-        // Randomly select event type
-        const eventTypes = [EventType.SPLICE, EventType.LOSS, EventType.CONNECTOR, EventType.REFLECTION];
-        const randomType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
-        
-        // Create event with properties based on type
-        let event: OTDREvent;
-        
-        switch (randomType) {
+        switch (issue.type) {
           case EventType.SPLICE:
-            event = {
-              id: `${Date.now()}-${i}`,
+            events.push({
+              id: eventId,
               type: EventType.SPLICE,
-              distance: eventDistance,
-              loss: 0.05 + Math.random() * 0.2, // 0.05-0.25dB loss
-              reflection: -65 + Math.random() * 10, // -65 to -55dB reflection
+              distance: issue.distance,
+              loss: 0.1,
+              reflection: -60,
               description: 'Fusion Splice'
-            };
-            break;
-          case EventType.CONNECTOR:
-            event = {
-              id: `${Date.now()}-${i}`,
-              type: EventType.CONNECTOR,
-              distance: eventDistance,
-              loss: 0.3 + Math.random() * 0.5, // 0.3-0.8dB loss
-              reflection: -40 + Math.random() * 15, // -40 to -25dB reflection
-              description: 'Patch Panel Connection'
-            };
+            });
             break;
           case EventType.LOSS:
-            event = {
-              id: `${Date.now()}-${i}`,
+            events.push({
+              id: eventId,
               type: EventType.LOSS,
-              distance: eventDistance,
-              loss: 0.4 + Math.random() * 0.6, // 0.4-1.0dB loss
-              reflection: -70 + Math.random() * 10, // -70 to -60dB reflection
-              description: Math.random() > 0.5 ? 'Macrobend' : 'Stress Point'
-            };
+              distance: issue.distance,
+              loss: 0.6,
+              reflection: -68,
+              description: 'Macrobend'
+            });
             break;
-          default:
-            event = {
-              id: `${Date.now()}-${i}`,
-              type: EventType.REFLECTION,
-              distance: eventDistance,
-              loss: 0.2 + Math.random() * 0.4, // 0.2-0.6dB loss
-              reflection: -45 + Math.random() * 15, // -45 to -30dB reflection
-              description: 'Reflective Event'
-            };
+          case EventType.CONNECTOR:
+            events.push({
+              id: eventId,
+              type: EventType.CONNECTOR,
+              distance: issue.distance,
+              loss: 0.4,
+              reflection: -35,
+              description: 'Patch Panel Connection'
+            });
+            break;
+          case EventType.BREAK:
+            events.push({
+              id: eventId,
+              type: EventType.BREAK,
+              distance: issue.distance,
+              loss: 40,
+              reflection: -15,
+              description: 'Fiber Break'
+            });
+            break;
         }
+      });
+      
+      // Create data points that show a realistic OTDR trace
+      const numPoints = 500;
+      const distance = Array.from({ length: numPoints }, (_, i) => (i * fiberLength / numPoints));
+      
+      // Generate power values
+      const power = distance.map(dist => {
+        // Base linear attenuation
+        let value = -0.25 * dist;
         
-        events.push(event);
-      }
-      
-      // Add a terminal event (end of fiber or break)
-      const isBreak = Math.random() > 0.7; // 30% chance of a break
-      
-      if (isBreak) {
-        events.push({
-          id: `${Date.now()}-${numEvents}`,
-          type: EventType.BREAK,
-          distance: fiberLength - 1 - Math.random() * 2, // Just before end
-          loss: 35 + Math.random() * 20, // 35-55dB loss (high)
-          reflection: -25 + Math.random() * 15, // -25 to -10dB reflection (high)
-          description: 'Fiber Break'
+        // Add some natural fiber noise
+        value -= (Math.random() * 0.05);
+        
+        // Add Rayleigh backscatter curve
+        value -= 2 * Math.log(dist + 1) / Math.log(10);
+        
+        // Add events impact to the trace
+        events.forEach(event => {
+          if (dist > event.distance) {
+            // Apply loss after the event point
+            value -= event.loss * (1 - Math.exp(-(dist - event.distance) * 5));
+            
+            // Add reflection spike near the event
+            if (event.reflection > -50 && Math.abs(dist - event.distance) < 0.1) {
+              const reflectionImpact = (0.1 - Math.abs(dist - event.distance)) * 
+                               Math.max(0, (event.reflection + 80) / 10);
+              value += reflectionImpact;
+            }
+          }
         });
-      } else {
-        events.push({
-          id: `${Date.now()}-${numEvents}`,
-          type: EventType.REFLECTION,
-          distance: fiberLength,
-          loss: 20 + Math.random() * 10, // 20-30dB loss
-          reflection: -30 + Math.random() * 10, // -30 to -20dB reflection
-          description: 'End of Fiber'
-        });
-      }
+        
+        return value;
+      });
       
-      // Create the new trace using our generator function
-      const newTrace = generateOTDRTrace(
-        `${Date.now()}`,
-        file.name,
+      // Create the trace object
+      const newTrace: OTDRTrace = {
+        id: `${Date.now()}`,
+        fileName: file.name,
         fiberId,
         timestamp,
-        500, // Use higher data point resolution
+        distance,
+        power,
         events
-      );
+      };
       
       // Add the new trace to the store
       set(state => ({ 

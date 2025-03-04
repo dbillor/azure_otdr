@@ -1,17 +1,83 @@
 import React, { useRef, useState } from 'react';
 import useOTDRStore from '../../store/otdrStore';
+import { OTDRTrace, OTDREvent, EventType } from '../../types/otdr';
+
+const API_URL = 'http://localhost:8000/api/upload';
 
 const FileUploader: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [processingError, setProcessingError] = useState<string | null>(null);
   const { uploadTrace, loading, error } = useOTDRStore();
+  const [useLocalProcessing, setUseLocalProcessing] = useState(true);
+
+  const processFileWithAPI = async (file: File) => {
+    try {
+      setProcessingError(null);
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API response error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Convert API response to OTDRTrace format
+      const events: OTDREvent[] = data.events.map((event: any) => ({
+        id: event.id,
+        type: event.type as EventType,
+        distance: event.distance,
+        loss: event.loss,
+        reflection: event.reflection,
+        description: event.description
+      }));
+      
+      const trace: OTDRTrace = {
+        id: `${Date.now()}`,
+        fileName: data.fileName,
+        fiberId: data.fiberId,
+        timestamp: new Date(data.timestamp * 1000).toISOString(),
+        distance: data.distance,
+        power: data.power,
+        events: events
+      };
+      
+      return trace;
+    } catch (err) {
+      setProcessingError(err instanceof Error ? err.message : 'Failed to process OTDR file');
+      throw err;
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      await uploadTrace(files[0]);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      try {
+        if (!useLocalProcessing) {
+          // Use the API for processing
+          const trace = await processFileWithAPI(files[0]);
+          await uploadTrace(files[0], trace);
+        } else {
+          // Use the local processing in the store
+          await uploadTrace(files[0]);
+        }
+        
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } catch (err) {
+        console.error('Error processing file:', err);
       }
     }
   };
@@ -31,7 +97,18 @@ const FileUploader: React.FC = () => {
     
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      await uploadTrace(files[0]);
+      try {
+        if (!useLocalProcessing) {
+          // Use the API for processing
+          const trace = await processFileWithAPI(files[0]);
+          await uploadTrace(files[0], trace);
+        } else {
+          // Use the local processing in the store
+          await uploadTrace(files[0]);
+        }
+      } catch (err) {
+        console.error('Error processing file:', err);
+      }
     }
   };
 
@@ -39,6 +116,10 @@ const FileUploader: React.FC = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
+  };
+
+  const toggleProcessingMode = () => {
+    setUseLocalProcessing(!useLocalProcessing);
   };
 
   return (
@@ -58,7 +139,7 @@ const FileUploader: React.FC = () => {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span>Uploading...</span>
+            <span>Uploading and Processing...</span>
           </div>
         ) : (
           <>
@@ -75,11 +156,31 @@ const FileUploader: React.FC = () => {
         )}
       </div>
       
-      {error && (
+      {(error || processingError) && (
         <div className="mt-2 text-sm text-red-600">
-          Error: {error}
+          Error: {error || processingError}
         </div>
       )}
+      
+      <div className="mt-2 flex items-center">
+        <label className="inline-flex items-center cursor-pointer">
+          <input 
+            type="checkbox" 
+            checked={useLocalProcessing}
+            onChange={toggleProcessingMode}
+            className="sr-only peer" 
+          />
+          <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          <span className="ms-3 text-sm font-medium text-gray-500">
+            {useLocalProcessing ? 'Using Client-Side Processing' : 'Using API Processing'}
+          </span>
+        </label>
+        <div className="ml-2 text-xs text-gray-400">
+          {useLocalProcessing 
+            ? '(Python API not used)' 
+            : '(Requires API running on port 8000)'}
+        </div>
+      </div>
       
       <input
         type="file"

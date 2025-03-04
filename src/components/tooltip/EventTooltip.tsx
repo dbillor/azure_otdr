@@ -68,63 +68,51 @@ const EventTooltip: React.FC<EventTooltipProps> = ({ event, onClose }) => {
   const severity = getSeverityLevel(event);
   
   return (
-    <Dialog open={true} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-      
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-          <Dialog.Title className={`text-lg font-semibold ${getEventColor(event.type)}`}>
-            {event.type.charAt(0).toUpperCase() + event.type.slice(1)} Event Details
-          </Dialog.Title>
-          
-          <div className="mt-4 space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="text-gray-600">Event ID:</div>
-              <div className="font-medium">{event.id}</div>
-              
-              <div className="text-gray-600">Distance:</div>
-              <div className="font-medium">{event.distance.toFixed(2)} km</div>
-              
-              <div className="text-gray-600">Loss:</div>
-              <div className="font-medium">{event.loss.toFixed(2)} dB</div>
-              
-              <div className="text-gray-600">Reflection:</div>
-              <div className="font-medium">{event.reflection.toFixed(2)} dB</div>
-              
-              <div className="text-gray-600">Description:</div>
-              <div className="font-medium">{event.description || 'No description available'}</div>
-              
-              <div className="text-gray-600">Status:</div>
-              <div className={`font-medium ${severity.color}`}>{severity.label}</div>
-            </div>
-            
-            <div className="bg-gray-50 p-3 rounded-md text-sm mt-3">
-              <p>{getEventExplanation(event.type)}</p>
-            </div>
-            
-            {severity.label !== 'Normal' && (
-              <div className={`text-sm ${severity.color === 'text-red-600' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'} p-3 rounded-md`}>
-                <p className="font-medium">Recommendation:</p>
-                <p>
-                  {severity.label === 'Critical' 
-                    ? 'Immediate investigation required. This event indicates a possible fiber break or critical failure point.'
-                    : 'This event exceeds typical thresholds and should be investigated during next maintenance window.'}
-                </p>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-6 flex justify-end">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </Dialog.Panel>
+    <div className="absolute z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-4 w-80">
+      <div className={`text-lg font-semibold ${getEventColor(event.type)}`}>
+        {event.type.charAt(0).toUpperCase() + event.type.slice(1)} Event
       </div>
-    </Dialog>
+      
+      <div className="mt-2 space-y-2">
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="text-gray-600">Distance:</div>
+          <div className="font-medium">{event.distance.toFixed(2)} km</div>
+          
+          <div className="text-gray-600">Loss:</div>
+          <div className="font-medium text-amber-600 font-bold">{event.loss.toFixed(2)} dB</div>
+          
+          <div className="text-gray-600">Reflection:</div>
+          <div className="font-medium">{event.reflection.toFixed(2)} dB</div>
+          
+          <div className="text-gray-600">Status:</div>
+          <div className={`font-medium ${severity.color}`}>{severity.label}</div>
+        </div>
+        
+        {event.description && (
+          <div className="text-xs mt-1 italic">
+            {event.description}
+          </div>
+        )}
+        
+        {severity.label !== 'Normal' && (
+          <div className={`text-xs ${severity.color === 'text-red-600' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'} p-2 rounded-md mt-1`}>
+            <p className="font-medium">Recommendation:</p>
+            <p>
+              {severity.label === 'Critical' 
+                ? 'Immediate investigation required.'
+                : 'Investigate during next maintenance.'}
+            </p>
+          </div>
+        )}
+      </div>
+      
+      <button
+        onClick={onClose}
+        className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+      >
+        ×
+      </button>
+    </div>
   );
 };
 

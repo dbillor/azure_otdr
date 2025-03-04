@@ -8,6 +8,7 @@ import {
   Tooltip, 
   ResponsiveContainer,
   ReferenceDot,
+  ReferenceLine,
   Legend,
   Label
 } from 'recharts';
@@ -70,27 +71,37 @@ const OTDRGraph: React.FC<OTDRGraphProps> = ({ trace }) => {
     return data;
   }, [displayTraces]);
   
-  // Helper function to get event color based on type
+  // Helper function to get event color based on type (using more vibrant colors)
   const getEventColor = (type: EventType): string => {
     switch (type) {
       case EventType.REFLECTION:
-        return '#3b82f6'; // blue
+        return '#3b82f6'; // vibrant blue
       case EventType.LOSS:
-        return '#f59e0b'; // amber
+        return '#f59e0b'; // vibrant amber
       case EventType.BREAK:
-        return '#ef4444'; // red
+        return '#ef4444'; // vibrant red
       case EventType.SPLICE:
-        return '#10b981'; // emerald
+        return '#10b981'; // vibrant emerald
       case EventType.CONNECTOR:
-        return '#8b5cf6'; // purple
+        return '#8b5cf6'; // vibrant purple
       default:
-        return '#6b7280'; // gray
+        return '#6b7280'; // vibrant gray
     }
   };
   
   // Click handler for events
   const handleEventClick = (event: OTDREvent) => {
     setSelectedEvent(event === selectedEvent ? null : event);
+  };
+  
+  // Hover handler for events
+  const handleEventHover = (event: OTDREvent) => {
+    setSelectedEvent(event);
+  };
+  
+  // Leave handler for events
+  const handleEventLeave = () => {
+    setSelectedEvent(null);
   };
   
   // Reset zoom
@@ -121,14 +132,14 @@ const OTDRGraph: React.FC<OTDRGraphProps> = ({ trace }) => {
       const traceInfo = displayTraces.find(t => t.id === traceId);
       
       if (traceInfo) {
-        return [`${value.toFixed(3)} dB`, traceInfo.fileName || `Trace ${traceId}`];
+        return [`${value.toFixed(2)} dB`, traceInfo.fileName || `Trace ${traceId}`];
       }
     }
-    return [`${value.toFixed(3)} dB`, name];
+    return [`${value.toFixed(2)} dB`, name];
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 h-full flex flex-col">
+    <div className="bg-white rounded-lg shadow-md p-4 h-full flex flex-col relative">
       <div className="flex items-center justify-between mb-4">
         <div>
           {isCompareMode && comparisonTraces.length > 0 ? (
@@ -184,38 +195,44 @@ const OTDRGraph: React.FC<OTDRGraphProps> = ({ trace }) => {
               dataKey="distance" 
               domain={xDomain}
               type="number"
-              tickCount={10}
+              tickCount={20}
               allowDecimals={true}
               allowDataOverflow={true}
               padding={{ left: 20, right: 20 }}
               tickMargin={10}
+              tick={{ fill: '#666', fontSize: 11 }}
+              tickLine={{ stroke: '#999' }}
             >
               <Label 
                 value="Distance (km)" 
                 position="insideBottom" 
                 offset={-5} 
-                style={{ textAnchor: 'middle', fontSize: 12, fill: '#666' }}
+                style={{ textAnchor: 'middle', fontSize: 12, fill: '#666', fontWeight: 500 }}
               />
             </XAxis>
             <YAxis 
               domain={[minPower, maxPower]}
+              reversed={true}
               tickCount={10}
               allowDecimals={true}
               allowDataOverflow={true}
               tickMargin={8}
               width={60}
+              tick={{ fill: '#666', fontSize: 11 }}
+              tickLine={{ stroke: '#999' }}
+              tickFormatter={(value) => value.toFixed(1)}
             >
               <Label 
                 value="Power (dB)" 
                 angle={-90} 
                 position="insideLeft" 
                 offset={-5} 
-                style={{ textAnchor: 'middle', fontSize: 12, fill: '#666' }}
+                style={{ textAnchor: 'middle', fontSize: 12, fill: '#666', fontWeight: 500 }}
               />
             </YAxis>
             <Tooltip 
               formatter={customFormatter}
-              labelFormatter={(value: number) => `Distance: ${value.toFixed(3)} km`}
+              labelFormatter={(value: number) => `Distance: ${value.toFixed(2)} km`}
               contentStyle={{ 
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
                 border: '1px solid #ddd',
@@ -235,9 +252,9 @@ const OTDRGraph: React.FC<OTDRGraphProps> = ({ trace }) => {
                 type="monotone" 
                 dataKey={`power_${traceItem.id}`} 
                 stroke={TRACE_COLORS[index % TRACE_COLORS.length]} 
-                strokeWidth={2.5}
+                strokeWidth={3}
                 dot={false} 
-                activeDot={{ r: 7, fill: TRACE_COLORS[index % TRACE_COLORS.length], stroke: '#ffffff', strokeWidth: 2 }}
+                activeDot={{ r: 8, fill: TRACE_COLORS[index % TRACE_COLORS.length], stroke: '#ffffff', strokeWidth: 2.5 }}
                 name={traceItem.fileName || `Trace ${traceItem.id}`}
                 isAnimationActive={true}
                 animationDuration={750}
@@ -245,53 +262,110 @@ const OTDRGraph: React.FC<OTDRGraphProps> = ({ trace }) => {
               />
             ))}
             
-            {/* Only show events when not in compare mode */}
-            {!isCompareMode && (
-              <>
-                {/* Render event markers */}
-                {trace.events.map(event => (
+            {/* Always show events on the plot */}
+            <>
+              {console.log("Events in trace:", trace.events?.length || 0, trace.events)}
+              {/* Render vertical reference lines for events */}
+              {trace.events.map(event => (
+                <ReferenceLine
+                  key={`line-${event.id}`}
+                  x={event.distance}
+                  stroke={getEventColor(event.type)}
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
+                  ifOverflow="extendDomain"
+                  label={{ 
+                    value: `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} (${event.loss.toFixed(1)}dB)`,
+                    position: "top",
+                    fill: getEventColor(event.type),
+                    fontSize: 11,
+                    fontWeight: 600
+                  }}
+                />
+              ))}
+              
+              {/* Render event markers with labels */}
+              {trace.events.map(event => (
+                <React.Fragment key={event.id}>
+                  {/* Add a larger background dot for better visibility */}
                   <ReferenceDot
-                    key={event.id}
                     x={event.distance}
                     y={trace.power[trace.distance.findIndex(d => Math.abs(d - event.distance) < 0.01)] || 0}
-                    r={7}
+                    r={13}
+                    fill={getEventColor(event.type)}
+                    fillOpacity={0.2}
+                    stroke={getEventColor(event.type)}
+                    strokeWidth={1}
+                    isFront={true}
+                  />
+                  {/* Main event dot */}
+                  <ReferenceDot
+                    x={event.distance}
+                    y={trace.power[trace.distance.findIndex(d => Math.abs(d - event.distance) < 0.01)] || 0}
+                    r={8}
                     fill={getEventColor(event.type)}
                     stroke="white"
-                    strokeWidth={2}
+                    strokeWidth={3}
+                    strokeOpacity={1}
                     onClick={() => handleEventClick(event)}
+                    onMouseEnter={() => handleEventHover(event)}
+                    onMouseLeave={handleEventLeave}
                     style={{ cursor: 'pointer' }}
                     isFront={true}
                   />
-                ))}
-                
-                {/* Highlight selected event */}
-                {selectedEvent && (
-                  <>
-                    <ReferenceDot
-                      x={selectedEvent.distance}
-                      y={trace.power[trace.distance.findIndex(d => Math.abs(d - selectedEvent.distance) < 0.01)] || 0}
-                      r={14}
-                      fill={getEventColor(selectedEvent.type)}
-                      fillOpacity={0.15}
-                      stroke={getEventColor(selectedEvent.type)}
-                      strokeWidth={1.5}
-                      strokeDasharray="3 3"
-                      isFront={true}
-                    />
-                    <ReferenceDot
-                      x={selectedEvent.distance}
-                      y={trace.power[trace.distance.findIndex(d => Math.abs(d - selectedEvent.distance) < 0.01)] || 0}
-                      r={9}
-                      fill={getEventColor(selectedEvent.type)}
-                      fillOpacity={0.6}
-                      stroke="white"
-                      strokeWidth={2}
-                      isFront={true}
-                    />
-                  </>
-                )}
-              </>
-            )}
+                </React.Fragment>
+              ))}
+              
+              {/* Highlight selected event */}
+              {selectedEvent && (
+                <>
+                  {/* Pulsing animated highlight effect */}
+                  <ReferenceLine
+                    x={selectedEvent.distance}
+                    stroke={getEventColor(selectedEvent.type)}
+                    strokeWidth={4}
+                    isFront={true}
+                    strokeLinecap="round"
+                  />
+                  {/* Outer highlight ring */}
+                  <ReferenceDot
+                    x={selectedEvent.distance}
+                    y={trace.power[trace.distance.findIndex(d => Math.abs(d - selectedEvent.distance) < 0.01)] || 0}
+                    r={25}
+                    fill={getEventColor(selectedEvent.type)}
+                    fillOpacity={0.2}
+                    stroke={getEventColor(selectedEvent.type)}
+                    strokeWidth={2}
+                    strokeDasharray="5 3"
+                    isFront={true}
+                  />
+                  {/* Middle highlight ring */}
+                  <ReferenceDot
+                    x={selectedEvent.distance}
+                    y={trace.power[trace.distance.findIndex(d => Math.abs(d - selectedEvent.distance) < 0.01)] || 0}
+                    r={18}
+                    fill={getEventColor(selectedEvent.type)}
+                    fillOpacity={0.4}
+                    stroke={getEventColor(selectedEvent.type)}
+                    strokeWidth={2}
+                    isFront={true}
+                  />
+                  {/* Inner highlight dot */}
+                  <ReferenceDot
+                    x={selectedEvent.distance}
+                    y={trace.power[trace.distance.findIndex(d => Math.abs(d - selectedEvent.distance) < 0.01)] || 0}
+                    r={12}
+                    fill={getEventColor(selectedEvent.type)}
+                    fillOpacity={0.8}
+                    stroke="white"
+                    strokeWidth={3}
+                    isFront={true}
+                  />
+                </>
+              )}
+            </>
+            
+            {/* Only show the event details panel when not in compare mode */}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -315,10 +389,20 @@ const OTDRGraph: React.FC<OTDRGraphProps> = ({ trace }) => {
       
       {/* Event tooltip */}
       {selectedEvent && !isCompareMode && (
-        <EventTooltip 
-          event={selectedEvent}
-          onClose={() => setSelectedEvent(null)}
-        />
+        <div 
+          style={{ 
+            position: 'absolute', 
+            top: '50%', 
+            left: '50%', 
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'auto'
+          }}
+        >
+          <EventTooltip 
+            event={selectedEvent}
+            onClose={() => setSelectedEvent(null)}
+          />
+        </div>
       )}
     </div>
   );
